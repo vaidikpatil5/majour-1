@@ -4,8 +4,10 @@
 /docmind/__pycache__
 /.venv
 
+
 # llm related ignores
 /llm/__pycache__
+/.env
 
 # git related ignores
 /.git

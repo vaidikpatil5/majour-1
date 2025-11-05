@@ -1,15 +1,17 @@
+# -*- coding: utf-8 -*-
+"""rag-llm-documind
+
+Core RAG pipeline for DocuMind.
+"""
+
 import os
 import json
-import tempfile
 from typing import List, Dict, Tuple
 import fitz  # PyMuPDF
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
 from groq import Groq
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # -------------------------
 # Configuration
@@ -24,10 +26,13 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 MAX_CONTEXT_CHARS = 4000
 
 # -------------------------
-# Global Variables (per-session, but we'll manage persistence)
+# Global Variables
 # -------------------------
 client = None
 embedder = None
+FAISS_INDEX = None
+METADATA = None
+CHUNKS = None
 
 def initialize_models():
     """Initialize the Groq client and sentence transformer model."""
@@ -38,29 +43,25 @@ def initialize_models():
     client = Groq(api_key=GROQ_API_KEY)
     embedder = SentenceTransformer(EMBEDDING_MODEL)
 
-def extract_text_from_file(file_path: str, file_type: str) -> str:
-    """Extract text from a file based on its type."""
-    if file_type == 'pdf':
-        doc = fitz.open(file_path)
-        text = ""
-        for page in doc:
-            text += '\n'
-            text += page.get_text()
-        return text
-    elif file_type in ['text', 'markdown']:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    else:
-        raise ValueError(f"Unsupported file type: {file_type}")
+def extract_pdf_text(pdf_path: str) -> List[Tuple[int, str]]:
+    """Extract text from a PDF and return a list of (page_no, page_text)."""
+    doc = fitz.open(pdf_path)
+    pages = []
+    for i, page in enumerate(doc):
+        text = page.get_text()
+        pages.append((i + 1, text))
+    return pages
 
-def chunk_text(text: str, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP) -> List[Dict]:
-    """Chunk text into overlapping segments."""
+def chunk_text_from_pages(pages: List[Tuple[int, str]], chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP) -> List[Dict]:
+    """Convert a list of pages into a list of chunk dictionaries."""
+    combined = [f"\n\n[PAGE {page_no}]\n{page_text.strip()}" for page_no, page_text in pages]
+    all_text = "\n".join(combined)
     chunks = []
     start = 0
-    text_len = len(text)
+    text_len = len(all_text)
     while start < text_len:
         end = start + chunk_size
-        chunk_text = text[start:end]
+        chunk_text = all_text[start:end]
         chunks.append({"text": chunk_text, "start_char": start, "end_char": end})
         start = end - overlap
         if start < 0:
@@ -69,40 +70,45 @@ def chunk_text(text: str, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP) -> List[
 
 def embed_texts(texts: List[str]) -> np.ndarray:
     """Compute embeddings for a list of texts."""
-    embs = embedder.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+    embs = embedder.encode(texts, show_progress_bar=True, convert_to_numpy=True)
     return embs.astype("float32")
 
-def setup_rag_from_context(context_data: Dict[str, str]):
-    """Build the RAG index from context_data (filename: text)."""
+def setup_rag(pdf_files: List[str]):
+    """Build the RAG index from a list of PDF files."""
+    global FAISS_INDEX, METADATA, CHUNKS
+    
     all_chunks = []
     metadata_list = []
-    for filename, text in context_data.items():
-        file_chunks = chunk_text(text)
-        for i, c in enumerate(file_chunks):
-            chunk_id = f"{filename}::chunk_{i}"
+    for pdf in pdf_files:
+        pages = extract_pdf_text(pdf)
+        pdf_chunks = chunk_text_from_pages(pages)
+        for i, c in enumerate(pdf_chunks):
+            chunk_id = f"{pdf}::chunk_{i}"
             entry = {
                 "chunk_id": chunk_id,
-                "filename": filename,
+                "pdf": pdf,
                 "text": c["text"],
                 "start_char": c["start_char"],
                 "end_char": c["end_char"],
             }
             all_chunks.append(entry)
-            metadata_list.append({"chunk_id": chunk_id, "filename": filename, "start_char": c["start_char"], "end_char": c["end_char"]})
+            metadata_list.append({"chunk_id": chunk_id, "pdf": pdf, "start_char": c["start_char"], "end_char": c["end_char"]})
 
     texts = [c["text"] for c in all_chunks]
     embs = embed_texts(texts)
     dim = embs.shape[1]
-
+    
     index = faiss.IndexFlatL2(dim)
     index.add(embs)
+    
+    FAISS_INDEX = index
+    METADATA = metadata_list
+    CHUNKS = all_chunks
 
-    return index, metadata_list, all_chunks
-
-def retrieve(query: str, index, metadata, chunks, top_k=TOP_K) -> List[Dict]:
+def retrieve(query: str, top_k=TOP_K) -> List[Dict]:
     """Retrieve relevant chunks for a given query."""
     q_emb = embed_texts([query])
-    D, I = index.search(q_emb, top_k)
+    D, I = FAISS_INDEX.search(q_emb, top_k)
     scores = D[0].tolist()
     idxs = I[0].tolist()
     results = []
@@ -110,8 +116,8 @@ def retrieve(query: str, index, metadata, chunks, top_k=TOP_K) -> List[Dict]:
         if idx >= 0:
             results.append({
                 "score": float(score),
-                "metadata": metadata[idx],
-                "text": chunks[idx]["text"]
+                "metadata": METADATA[idx],
+                "text": CHUNKS[idx]["text"]
             })
     return results
 
@@ -127,7 +133,7 @@ def build_context(retrieved: List[Dict], max_chars=MAX_CONTEXT_CHARS) -> Tuple[s
             if allowed <= 50:
                 break
             txt = txt[:allowed]
-        context_parts.append(f"=== SOURCE: {r['metadata']['filename']} ===\n{txt}\n")
+        context_parts.append(f"=== SOURCE: {r['metadata']['pdf']} ===\n{txt}\n")
         sources.append(r['metadata'])
         total += len(txt)
     return "\n".join(context_parts), sources
@@ -136,8 +142,8 @@ def ask_groq_with_context(query: str, context: str, model=GROQ_MODEL, max_tokens
     """Get an answer from the Groq LLM based on the provided context."""
     system_msg = (
         "You are an AI assistant that answers user questions using only the provided DOCUMENT CONTEXT. "
-        "If the answer is too generic u can respond otherwise if not present in the documents, say , no mentions in the doc  — do not hallucinate. "
-        "Cite sources page no by filename when you use a fact from a document."
+        "If the answer is not present in the documents, say you don't know — do not hallucinate. "
+        "Cite sources by filename when you use a fact from a document."
     )
     user_prompt = (
         "DOCUMENTS:\n" + context + "\n\n"
@@ -155,25 +161,40 @@ def ask_groq_with_context(query: str, context: str, model=GROQ_MODEL, max_tokens
     content = resp.choices[0].message.content.strip()
     return {"text": content, "raw": resp}
 
-def query_processor(context_data: Dict[str, str], prompt: str) -> str:
-    '''
-        - context_data contains the text of files attached by user.
-        - It is a dictionary where filename is the key
-          and respective value is the file's text content.
-        - The prompt is a string containing the query provided by user.
-        - The return value is a string (containing the answer to prompt).
-    '''
-    if not context_data:
-        return "No files provided. Please upload at least one PDF or text file."
+def answer_query(query: str, top_k=TOP_K) -> Dict:
+    """Answer a query using the RAG pipeline."""
+    if FAISS_INDEX is None:
+        return {"answer": "RAG index not set up. Please process PDFs first.", "sources": []}
+    
+    retrieved = retrieve(query, top_k=top_k)
+    if not retrieved:
+        return {"answer": "No relevant content found in PDFs.", "sources": []}
+    
+    context, sources = build_context(retrieved)
+    resp = ask_groq_with_context(query, context)
+    return {"answer": resp["text"], "sources": sources}
 
-    try:
-        initialize_models()  # Ensure models are initialized
-        index, metadata, chunks = setup_rag_from_context(context_data)
-        retrieved = retrieve(prompt, index, metadata, chunks)
-        if not retrieved:
-            return "No relevant content found in the uploaded files."
-        context, sources = build_context(retrieved)
-        resp = ask_groq_with_context(prompt, context)
-        return resp["text"]
-    except Exception as e:
-        return f"An error occurred while processing your query: {str(e)}. Please check your API key and file formats."
+if __name__ == '__main__':
+    # This block is for testing the module directly
+    initialize_models()
+    
+    # Create a dummy PDF for testing
+    dummy_pdf_path = "dummy_document.pdf"
+    with fitz.open() as doc:
+        page = doc.new_page()
+        page.insert_text((50, 72), "This is a test document about machine learning and RAG models.")
+        doc.save(dummy_pdf_path)
+
+    setup_rag([dummy_pdf_path])
+    
+    test_query = "What is this document about?"
+    result = answer_query(test_query)
+    
+    print("=== Test Query ===")
+    print(f"Query: {test_query}")
+    print(f"Answer: {result['answer']}")
+    print(f"Sources: {result['sources']}")
+    
+    # Clean up the dummy file
+    os.remove(dummy_pdf_path)
+

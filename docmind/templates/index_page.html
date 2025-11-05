@@ -12,6 +12,8 @@
             Your instant insights assistant for text and PDF files.
         </p>
         <a href="{{url_for('query_page')}}" class="primary-button cta-button">Start Analyzing Now</a>
+        <br><br>
+        <a href="{{url_for('gradio_interface')}}" class="primary-button cta-button" style="background-color: var(--color-secondary);">Try Gradio Interface</a>
     </header>
 
     <section id="about" class="card-container">
@@ -32,7 +34,9 @@
             <li>PyMuPDF: Python library for pdf text extraction.</li>
             <li>HTML: For the frontend (client interactions).</li>
             <li>CSS: For styling the HTML.</li>
-            <li>Mistral: LLM model for generating response.</li>
+            <li>Groq + Llama 3.3: LLM model for generating response.</li>
+            <li>FAISS: Vector search for retrieval.</li>
+            <li>SentenceTransformers: Embeddings for semantic search.</li>
         </ul>
     </section>
 </div>

@@ -1,2 +1,4 @@
 export server_env="DEV"
-./.venv/bin/python3 -m flask --app docmind run --debug
+# Activate conda environment if using conda
+# conda activate docmind-env
+python -m flask --app docmind run --debug
