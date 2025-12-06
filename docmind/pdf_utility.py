@@ -11,5 +11,5 @@ def text_from_pdf(pdf_file_pointer)->str:
     for page in doc:
         text += '\n'
         text += page.get_text()
-
+        
     return text

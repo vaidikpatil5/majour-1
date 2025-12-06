@@ -4,12 +4,12 @@ channels:
   - defaults
 dependencies:
   - python=3.10
+  - numpy<2
   - pip
   - pip:
     - flask==2.3.3
     - PyMuPDF==1.23.8
-    - gradio==4.0.0
-    - sentence-transformers==2.2.2
+    - sentence-transformers>=2.7.0
     - faiss-cpu==1.7.4
-    - groq==0.4.1
+    - groq==0.9.0
     - python-dotenv==1.0.0

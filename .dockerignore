@@ -1,0 +1,15 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+flagged/
+*.pdf
+Dockerfile
+**/.DS_Store
+**/Thumbs.db

@@ -3,7 +3,6 @@ from llm import query_processor
 from werkzeug.utils import secure_filename
 import tempfile
 import os
-import gradio as gr
 
 
 def create_app(test_config=None):
@@ -108,7 +107,7 @@ def create_app(test_config=None):
                 gr.Textbox(label="Answer"),
                 gr.JSON(label="Sources")
             ],
-            title="DocuMind - Gradio Interface",
+            title="DocuMind  Gradio Interface",
             description="Upload PDFs and ask questions about their content.",
         )
         return iface.launch(share=False, server_name="127.0.0.1", server_port=7860, inline=True)

@@ -9,7 +9,7 @@ Upload PDF and text files, then ask questions via a prompt. Get answers powered 
 - Ask natural language questions about the content
 - AI-powered answers using Groq's Llama 3.3 model
 - Vector search with FAISS for efficient retrieval
-- Two interfaces: Custom Flask UI and Gradio web app
+- Custom Flask UI for web-based interaction
 - Stateless processing with per-query file handling
 
 ## Setup
@@ -60,7 +60,6 @@ Upload PDF and text files, then ask questions via a prompt. Get answers powered 
 ## Technologies Used
 - **Python**: Main programming language
 - **Flask**: Web framework for the custom UI
-- **Gradio**: Alternative web interface
 - **PyMuPDF**: PDF text extraction
 - **SentenceTransformers**: Text embeddings
 - **FAISS**: Vector similarity search
@@ -70,14 +69,16 @@ Upload PDF and text files, then ask questions via a prompt. Get answers powered 
 ## Project Structure
 ```
 docmind/
-├── __init__.py              # Flask app and routes
+├── __init__.py              # Flask app factory
+├── config.py                # Application configuration
+├── routes.py                # Flask routes
+├── llm_processor.py         # LLM processing interface
 ├── pdf_utility.py           # PDF processing utilities
 ├── static/                  # CSS, images, etc.
 ├── templates/               # HTML templates
 llm/
 ├── __init__.py              # RAG pipeline and query processing
-rag_llm_documind.py          # Original RAG implementation
-main.py                      # Gradio standalone app
+app.py                       # Application entry point
 requirements.txt             # Python dependencies
 environment.yml              # Conda environment
 commands/
