@@ -44,7 +44,7 @@ export default function ChatArea({ messages, onSendMessage, isLoading, selectedP
     <div className="flex-1 flex flex-col h-full bg-background">
       {/* Header */}
       <div className="border-b border-border p-4 md:p-6">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+        <h1 className="text-2xl font-bold bg-linear-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
           Talk to Your PDFs
         </h1>
         {selectedPdfCount && selectedPdfCount > 0 ? (
@@ -74,7 +74,7 @@ export default function ChatArea({ messages, onSendMessage, isLoading, selectedP
             ))}
             {isLoading && (
               <div className="flex gap-3 items-start">
-                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
                   <Loader className="w-4 h-4 animate-spin text-primary" />
                 </div>
                 <div className="flex-1 bg-card rounded-lg p-4">
