@@ -1,10 +1,12 @@
-# TODO: Remove Gradio UI and Keep HTML UI Connected to Backend
+# TODO: Connect React UI to Flask Backend
 
-- [x] Remove Gradio import and /gradio route from docmind/__init__.py
-- [x] Update docmind/templates/index_page.html to remove Gradio link
-- [x] Delete main.py (standalone Gradio app)
-- [x] Remove gradio from requirements.txt
-- [x] Remove gradio from environment.yml
-- [x] Update TODO.md (this file) to remove Gradio references
-- [x] Update readme.md to reflect single HTML UI
-- [ ] Test the HTML UI connection to backend
+## Backend Changes (Minimal)
+- [x] Fix file handling in docmind/__init__.py to process multiple uploaded files using getlist
+- [x] Modify response_page route to return JSON if Accept header is application/json, else HTML
+
+## React UI Changes
+- [x] Update fetch in new_ui/app/page.tsx to send Accept: application/json header
+- [x] Change response parsing from HTML DOM to JSON
+
+## Testing
+- [x] Test the integration by running both Flask and React apps (Flask running with CORS, React UI updated)

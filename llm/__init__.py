@@ -155,7 +155,7 @@ def ask_groq_with_context(query: str, context: str, model=GROQ_MODEL, max_tokens
     content = resp.choices[0].message.content.strip()
     return {"text": content, "raw": resp}
 
-def query_processor(context_data: Dict[str, str], prompt: str) -> str:
+def query_processor(context_data: Dict[str, str], prompt: str) -> Dict:
     '''
         - context_data contains the text of files attached by user.
         - It is a dictionary where filename is the key
@@ -164,16 +164,16 @@ def query_processor(context_data: Dict[str, str], prompt: str) -> str:
         - The return value is a string (containing the answer to prompt).
     '''
     if not context_data:
-        return "No files provided. Please upload at least one PDF or text file."
+        return {"text": "No files provided. Please upload at least one PDF or text file.", "sources": []}
 
     try:
-        initialize_models()  # Ensure models are initialized
+        initialize_models()
         index, metadata, chunks = setup_rag_from_context(context_data)
         retrieved = retrieve(prompt, index, metadata, chunks)
         if not retrieved:
-            return "No relevant content found in the uploaded files."
+            return {"text": "No relevant content found in the uploaded files.", "sources": []}
         context, sources = build_context(retrieved)
         resp = ask_groq_with_context(prompt, context)
-        return resp["text"]
+        return {"text": resp["text"], "sources": sources}
     except Exception as e:
-        return f"An error occurred while processing your query: {str(e)}. Please check your API key and file formats."
+        return {"text": f"An error occurred while processing your query: {str(e)}. Please check your API key and file formats.", "sources": []}

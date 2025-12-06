@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from llm import query_processor
 from werkzeug.utils import secure_filename
 import tempfile
@@ -7,6 +8,7 @@ import os
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
+    CORS(app)
 
     @app.route("/", methods=('GET',))
     def index_page():
@@ -29,8 +31,7 @@ def create_app(test_config=None):
 
         try:
             # Extracting text from files into file_data
-            for name in files:
-                file = files[name]
+            for file in request.files.getlist("files"):
                 filename = secure_filename(file.filename)
                 if filename != '':  # i.e. if file not empty
                     # Save file to temp location for processing
@@ -53,22 +54,30 @@ def create_app(test_config=None):
                     else:
                         return f"Unsupported filetype {file.mimetype} submitted.", 400
 
-            # Getting the response text
-            response = query_processor(file_data, request.form['query_box'])
+            resp_data = query_processor(file_data, request.form['query_box'])
 
             # Rendering the template and returning the response
             # if correct form submitted.
             if 'query_submission' in form:
-                return render_template(
-                    "response_page.html",
-                    query=form["query_box"],
-                    response=response
-                ), 200
+                if 'application/json' in request.headers.get('Accept', '').lower():
+                    return jsonify({"query": form["query_box"], "response": resp_data.get("text"), "sources": resp_data.get("sources", [])}), 200
+                else:
+                    return render_template(
+                        "response_page.html",
+                        query=form["query_box"],
+                        response=resp_data.get("text")
+                    ), 200
             else:
-                return "Unknown form POSTed to response_page.", 400
+                if 'application/json' in request.headers.get('Accept', '').lower():
+                    return jsonify({"error": "Unknown form POSTed to response_page."}), 400
+                else:
+                    return "Unknown form POSTed to response_page.", 400
 
         except Exception as e:
-            return f"An error occurred: {str(e)}", 500
+            if 'application/json' in request.headers.get('Accept', '').lower():
+                return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+            else:
+                return f"An error occurred: {str(e)}", 500
 
         finally:
             # Cleanup temp files
